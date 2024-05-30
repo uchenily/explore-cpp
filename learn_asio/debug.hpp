@@ -1,6 +1,7 @@
 #pragma once
 
 #include "log.hpp"
+#include "print.hpp"
 
 inline auto &debug_logger = print_hpp::log::console;
 
@@ -15,6 +16,8 @@ inline auto &debug_logger = print_hpp::log::console;
 #define LOG_ERROR(...) debug_logger.error(__VA_ARGS__)
 #define LOG_FATAL(...) debug_logger.fatal(__VA_ARGS__)
 
+#define PRINT(...) print_hpp::print(__VA_ARGS__)
+
 #else
 
 #define SET_LOG_LEVEL(level)
@@ -25,6 +28,8 @@ inline auto &debug_logger = print_hpp::log::console;
 #define LOG_WARN(...)
 #define LOG_ERROR(...)
 #define LOG_FATAL(...)
+
+#define PRINT(...)
 
 #endif
 
