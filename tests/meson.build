@@ -3,6 +3,7 @@ all_tests_sources = [
   'test_print.cpp',
   'test_timer.cpp',
   'test_async_timer.cpp',
+  'test_binding_arguments.cpp',
 ]
 
 foreach source: all_tests_sources

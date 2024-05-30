@@ -11,6 +11,8 @@ compile_args = []
 
 includes = include_directories('learn_asio')
 
+asio_dep = dependency('asio')
 dependencies = []
+dependencies += asio_dep
 
 subdir('tests')
