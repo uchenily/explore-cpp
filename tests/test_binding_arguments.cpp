@@ -2,7 +2,6 @@
 #include "debug.hpp"
 
 using namespace std::literals;
-using namespace asio::error;
 
 void print(const asio::error_code &ec, asio::steady_timer *t, int *count) {
     LOG_INFO("callback called, ec={}", ec.message());
