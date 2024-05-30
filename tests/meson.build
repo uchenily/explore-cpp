@@ -6,6 +6,7 @@ all_tests_sources = [
   'test_binding_arguments.cpp',
   'test_member_function.cpp',
   'test_multithread.cpp',
+  'test_tcp_server.cpp',
   'test_tcp_client.cpp',
 ]
 
