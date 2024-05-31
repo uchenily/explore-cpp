@@ -8,6 +8,7 @@ all_tests_sources = [
   'test_multithread.cpp',
   'test_tcp_server.cpp',
   'test_tcp_client.cpp',
+  'test_async_tcp_server.cpp',
 ]
 
 foreach source: all_tests_sources
