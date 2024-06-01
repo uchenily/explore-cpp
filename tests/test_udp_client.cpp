@@ -23,6 +23,9 @@ auto main(int argc, char *argv[]) -> int {
 
     socket.send_to(asio::buffer(send_buf), receiver_endpoint);
     auto len = socket.receive_from(asio::buffer(recv_buf), sender_endpoint);
+    LOG_INFO("Received from {}:{}",
+             sender_endpoint.address().to_string(),
+             sender_endpoint.port());
 
     LOG_INFO("{}", std::string_view{recv_buf.data(), len});
 }

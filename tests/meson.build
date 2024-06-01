@@ -10,6 +10,7 @@ all_tests_sources = [
   'test_tcp_client.cpp',
   'test_async_tcp_server.cpp',
   'test_udp_client.cpp',
+  'test_udp_server.cpp',
 ]
 
 foreach source: all_tests_sources
