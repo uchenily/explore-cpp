@@ -5,7 +5,7 @@ project('learn_asio', 'cpp',
     'default_library=shared',
     'cpp_std=c++20',
     'warning_level=3'],
-  meson_version: '>=0.63.0')
+  meson_version: '>=1.2.0')
 
 compile_args = []
 
@@ -16,3 +16,4 @@ dependencies = []
 dependencies += asio_dep
 
 subdir('tests')
+subdir('benchmark')
