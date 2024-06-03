@@ -27,3 +27,24 @@ Running 30s test @ http://127.0.0.1:8000
 Requests/sec: 172257.14
 Transfer/sec:     14.62MB
 ```
+
+## benchmark_mt.cpp
+
+```bash
+$ date
+Mon Jun  3 05:51:51 PM CST 2024
+$ wrk -t4 -c1000 -d30s --latency http://127.0.0.1:8000
+Running 30s test @ http://127.0.0.1:8000
+  4 threads and 1000 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     1.03ms    2.42ms 149.09ms   99.81%
+    Req/Sec   154.42k    12.21k  168.08k    85.17%
+  Latency Distribution
+     50%  773.00us
+     75%    1.15ms
+     90%    1.53ms
+     99%    2.16ms
+  18438563 requests in 30.06s, 1.53GB read
+Requests/sec: 613404.37
+Transfer/sec:     52.06MB
+```
