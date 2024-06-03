@@ -1,5 +1,6 @@
 #pragma once
 #include "asio.hpp"
+#include <latch>
 
 class IOContextPool final {
     using io_context_ptr = std::unique_ptr<asio::io_context>;
@@ -32,13 +33,16 @@ public:
     }
 
     void run() {
+        std::latch sync{static_cast<ptrdiff_t>(io_contexts_.size() + 1)};
         for (const auto &context : io_contexts_) {
             threads_.emplace_back(
                 [](asio::io_context *ctx) {
                     ctx->run();
                 },
                 context.get());
+            sync.count_down();
         }
+        sync.arrive_and_wait();
     }
 
     void wait() {
