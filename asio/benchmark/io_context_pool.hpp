@@ -1,16 +1,17 @@
+#pragma once
 #include "asio.hpp"
 
 class IOContextPool final {
-    using io_context_ptr = std::shared_ptr<asio::io_context>;
-    using worker_ptr = std::shared_ptr<asio::io_context::work>;
+    using io_context_ptr = std::unique_ptr<asio::io_context>;
+    using work_guard_ptr
+        = asio::executor_work_guard<asio::io_context::executor_type>;
 
 public:
     IOContextPool(std::size_t pool_size = std::thread::hardware_concurrency()) {
         for (auto i = 0u; i < pool_size; i++) {
             auto &io_context = io_contexts_.emplace_back(
-                std::make_shared<asio::io_context>());
-            workers_.emplace_back(
-                std::make_shared<asio::io_context::work>(*io_context));
+                std::make_unique<asio::io_context>());
+            work_guards_.emplace_back(io_context->get_executor());
         }
     }
 
@@ -31,12 +32,12 @@ public:
     }
 
     void run() {
-        for (auto &io_context : io_contexts_) {
+        for (const auto &context : io_contexts_) {
             threads_.emplace_back(
-                [](const io_context_ptr &ctx) {
+                [](asio::io_context *ctx) {
                     ctx->run();
                 },
-                io_context);
+                context.get());
         }
     }
 
@@ -49,7 +50,7 @@ public:
     }
 
     void stop() {
-        workers_.clear();
+        work_guards_.clear();
 
         for (auto &io_context : io_contexts_) {
             io_context->stop();
@@ -59,6 +60,6 @@ public:
 private:
     std::size_t                 next_io_context_;
     std::vector<io_context_ptr> io_contexts_;
-    std::vector<worker_ptr>     workers_;
+    std::vector<work_guard_ptr> work_guards_;
     std::vector<std::thread>    threads_;
 };

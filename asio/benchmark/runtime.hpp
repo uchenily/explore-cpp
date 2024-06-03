@@ -1,3 +1,4 @@
+#pragma once
 #include "task.hpp"
 
 inline void spawn(Task<> &&task) {
