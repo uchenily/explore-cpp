@@ -32,18 +32,18 @@ public:
 
     void run() {
         for (auto &io_context : io_contexts_) {
-            threads_.emplace_back(std::make_shared<std::thread>(
+            threads_.emplace_back(
                 [](const io_context_ptr &ctx) {
                     ctx->run();
                 },
-                io_context));
+                io_context);
         }
     }
 
     void wait() {
         for (auto &thread : threads_) {
-            if (thread->joinable()) {
-                thread->join();
+            if (thread.joinable()) {
+                thread.join();
             }
         }
     }
@@ -57,8 +57,8 @@ public:
     }
 
 private:
-    std::size_t                               next_io_context_;
-    std::vector<io_context_ptr>               io_contexts_;
-    std::vector<worker_ptr>                   workers_;
-    std::vector<std::shared_ptr<std::thread>> threads_;
+    std::size_t                 next_io_context_;
+    std::vector<io_context_ptr> io_contexts_;
+    std::vector<worker_ptr>     workers_;
+    std::vector<std::thread>    threads_;
 };
