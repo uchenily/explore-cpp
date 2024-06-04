@@ -62,7 +62,7 @@ public:
     }
 
 private:
-    std::size_t                 next_io_context_;
+    std::size_t                 next_io_context_{};
     std::vector<io_context_ptr> io_contexts_;
     std::vector<work_guard_ptr> work_guards_;
     std::vector<std::thread>    threads_;
