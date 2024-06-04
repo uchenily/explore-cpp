@@ -36,20 +36,20 @@ public:
     }
 
     void run() {
+        std::vector<std::thread> threads;
+        threads.reserve(io_contexts_.size());
         std::latch sync{static_cast<ptrdiff_t>(io_contexts_.size() + 1)};
         for (const auto &context : io_contexts_) {
-            threads_.emplace_back(
-                [](asio::io_context *ctx) {
+            threads.emplace_back(
+                [&](asio::io_context *ctx) {
+                    sync.count_down();
                     ctx->run();
                 },
                 context.get());
-            sync.count_down();
         }
         sync.arrive_and_wait();
-    }
 
-    void wait() {
-        for (auto &thread : threads_) {
+        for (auto &thread : threads) {
             if (thread.joinable()) {
                 thread.join();
             }
@@ -68,5 +68,4 @@ private:
     std::size_t                 next_io_context_{};
     std::vector<io_context_ptr> io_contexts_;
     std::vector<work_guard_ptr> work_guards_;
-    std::vector<std::thread>    threads_;
 };

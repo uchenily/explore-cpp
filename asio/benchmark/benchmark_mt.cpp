@@ -153,9 +153,8 @@ auto main(int argc, char *argv[]) -> int {
 
     std::size_t   num_threads = std::stoul(argv[1]);
     IOContextPool pool{num_threads};
-    pool.run();
+    tcp_server    server{pool, 8000};
 
-    tcp_server server{pool, 8000};
-    pool.wait();
+    pool.run();
     restore_resource_limits();
 }
