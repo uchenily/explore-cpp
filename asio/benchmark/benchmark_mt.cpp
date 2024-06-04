@@ -8,6 +8,7 @@
 #include "runtime.hpp"
 
 using namespace asio::ip;
+using namespace print_hpp::log;
 
 template <typename T>
     requires(!std::is_reference_v<T>)
@@ -38,8 +39,7 @@ private:
     T                result_;
 };
 
-inline auto async_accept(asio::ip::tcp::acceptor &acceptor,
-                         asio::ip::tcp::socket   &socket) noexcept
+inline auto async_accept(tcp::acceptor &acceptor, tcp::socket &socket) noexcept
     -> Task<std::error_code> {
     co_return co_await AsioCallbackAwaiter<std::error_code>{
         [&](std::coroutine_handle<> handle, auto set_resume_value) {
@@ -123,11 +123,11 @@ public:
         while (true) {
             auto &ctx = pool_.get_io_context();
 
-            asio::ip::tcp::socket socket(ctx);
+            tcp::socket socket(ctx);
 
             auto ec = co_await async_accept(acceptor_, socket);
             if (ec) [[unlikely]] {
-                LOG_ERROR("ec={}", ec);
+                LOG_ERROR("ec={}", ec.message());
                 co_return;
             }
 
@@ -146,6 +146,7 @@ private:
 };
 
 auto main() -> int {
+    SET_LOG_LEVEL(LogLevel::WARN);
     IOContextPool pool{4};
     pool.run();
 
