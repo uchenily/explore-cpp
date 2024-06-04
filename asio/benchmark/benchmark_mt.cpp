@@ -1,7 +1,3 @@
-#if !defined(NDEBUG)
-#define NDEBUG
-#endif
-
 #include "asio.hpp"
 #include "debug.hpp"
 #include "io_context_pool.hpp"
@@ -146,10 +142,17 @@ private:
     tcp::acceptor  acceptor_;
 };
 
-auto main() -> int {
+auto main(int argc, char *argv[]) -> int {
+    if (argc != 2) {
+        printf("Usage: %s ${num_threads}\n", argv[0]);
+        return -1;
+    }
+
     raise_resource_limits();
     SET_LOG_LEVEL(LogLevel::WARN);
-    IOContextPool pool{10};
+
+    std::size_t   num_threads = std::stoul(argv[1]);
+    IOContextPool pool{num_threads};
     pool.run();
 
     tcp_server server{pool, 8000};
