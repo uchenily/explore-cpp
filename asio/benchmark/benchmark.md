@@ -48,3 +48,28 @@ Running 30s test @ http://127.0.0.1:8000
 Requests/sec: 613404.37
 Transfer/sec:     52.06MB
 ```
+
+---
+
+```bash
+$ date
+Tue Jun  4 10:29:58 AM CST 2024
+$ ./build/benchmark/benchmark_mt 8
+```
+
+```bash
+wrk -t12 -c1000 -d30s --latency http://127.0.0.1:8000
+Running 30s test @ http://127.0.0.1:8000
+  12 threads and 1000 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     0.98ms    3.69ms 225.82ms   99.71%
+    Req/Sec    92.78k     3.54k  102.79k    83.36%
+  Latency Distribution
+     50%    0.86ms
+     75%    0.90ms
+     90%    0.93ms
+     99%    2.01ms
+  33241054 requests in 30.04s, 2.76GB read
+Requests/sec: 1106699.09
+Transfer/sec:     93.93MB
+```
