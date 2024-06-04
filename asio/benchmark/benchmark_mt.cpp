@@ -5,6 +5,7 @@
 #include "asio.hpp"
 #include "debug.hpp"
 #include "io_context_pool.hpp"
+#include "resource_limit.hpp"
 #include "runtime.hpp"
 
 using namespace asio::ip;
@@ -146,10 +147,12 @@ private:
 };
 
 auto main() -> int {
+    raise_resource_limits();
     SET_LOG_LEVEL(LogLevel::WARN);
-    IOContextPool pool{4};
+    IOContextPool pool{10};
     pool.run();
 
     tcp_server server{pool, 8000};
     pool.wait();
+    restore_resource_limits();
 }
