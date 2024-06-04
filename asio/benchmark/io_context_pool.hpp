@@ -11,7 +11,10 @@ public:
     IOContextPool(std::size_t pool_size = std::thread::hardware_concurrency()) {
         for (auto i = 0u; i < pool_size; i++) {
             auto &io_context = io_contexts_.emplace_back(
-                std::make_unique<asio::io_context>());
+                // https://think-async.com/Asio/asio-1.30.2/doc/asio/overview/core/concurrency_hint.html
+                // FIXME: how to set concurrent hint? it seems that setting it
+                // to 1 will compile faster
+                std::make_unique<asio::io_context>(1));
             work_guards_.emplace_back(io_context->get_executor());
         }
     }
