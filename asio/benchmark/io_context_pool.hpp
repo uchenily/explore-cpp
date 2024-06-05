@@ -3,7 +3,7 @@
 
 class IOContextPool final {
     using io_context_ptr = std::unique_ptr<asio::io_context>;
-    using work_guard_ptr
+    using work_guard
         = asio::executor_work_guard<asio::io_context::executor_type>;
 
 public:
@@ -14,7 +14,9 @@ public:
                 // FIXME: how to set concurrent hint? it seems that setting it
                 // to 1 will compile faster
                 std::make_unique<asio::io_context>(1));
-            work_guards_.emplace_back(io_context->get_executor());
+
+            // work_guards_.emplace_back(io_context->get_executor());
+            work_guards_.emplace_back(asio::make_work_guard(*io_context));
         }
     }
 
@@ -63,5 +65,5 @@ public:
 private:
     std::size_t                 next_io_context_{};
     std::vector<io_context_ptr> io_contexts_;
-    std::vector<work_guard_ptr> work_guards_;
+    std::vector<work_guard>     work_guards_;
 };
