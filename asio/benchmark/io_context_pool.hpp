@@ -55,6 +55,10 @@ public:
     }
 
     void stop() {
+        // Allow ctx.run() to exit
+        for (auto &work : work_guards_) {
+            work.reset();
+        }
         work_guards_.clear();
 
         for (auto &io_context : io_contexts_) {
