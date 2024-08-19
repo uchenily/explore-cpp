@@ -36,3 +36,11 @@ dry-run:
 # install library
 install:
     meson install -C build --no-rebuild --only-changed
+
+# benchmark server
+bm_server:
+    ./build/benchmark/benchmark_mt 4
+
+# benchmark client
+bm_client:
+    wrk -t4 -c100 -d10s --latency http://127.0.0.1:8000
