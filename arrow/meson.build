@@ -21,6 +21,7 @@ dependencies += arrow_dep
 all_tests_sources = [
   '00_basic_data_strcuture.cpp',
   '01_file_io.cpp',
+  '02_arrow_compute.cpp',
 ]
 
 foreach source: all_tests_sources
