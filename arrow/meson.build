@@ -11,9 +11,15 @@ compile_args = []
 
 includes = include_directories('.')
 
+# $ cd /usr/lib/pkgconfig/
+# $ ls arrow*
+# arrow-acero.pc    arrow-csv.pc      arrow-filesystem.pc  arrow-flight-sql.pc  arrow-orc.pc  arrow-substrait.pc
+# arrow-compute.pc  arrow-dataset.pc  arrow-flight.pc      arrow-json.pc        arrow.pc      arrow-tensorflow.pc
 arrow_dep = dependency('arrow')
+arrowdataset_dep = dependency('arrow-dataset')
 dependencies = []
 dependencies += arrow_dep
+dependencies += arrowdataset_dep
 
 #subdir('tests')
 #subdir('benchmark')
@@ -22,6 +28,7 @@ all_tests_sources = [
   '00_basic_data_strcuture.cpp',
   '01_file_io.cpp',
   '02_arrow_compute.cpp',
+  '03_arrow_dataset.cpp',
 ]
 
 foreach source: all_tests_sources
