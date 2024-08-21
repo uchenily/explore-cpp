@@ -1,23 +1,7 @@
 #include "AppComponent.hpp"
 #include "controller/MyController.hpp"
+
 #include "oatpp/network/Server.hpp"
-
-class Handler : public oatpp::web::server::HttpRequestHandler {
-public:
-    std::shared_ptr<OutgoingResponse>
-    handle(const std::shared_ptr<IncomingRequest> &request) override {
-        auto message = MessageDTO::createShared();
-        message->statusCode = 1024;
-        message->message = "Hello DTO!";
-        return ResponseFactory::createResponse(Status::CODE_200,
-                                               message,
-                                               object_mapper_);
-    }
-
-private:
-    OATPP_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>,
-                    object_mapper_);
-};
 
 void run() {
     // 注册组件
