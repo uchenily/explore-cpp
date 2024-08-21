@@ -30,3 +30,5 @@ foreach source: all_tests_sources
 
   test(target_name, exe)
 endforeach
+
+subdir('03_well_structed_project')
