@@ -51,7 +51,7 @@ RecordBatch 对于各种序列化和计算函数来说是一个方便的工作�
 ![Table vs RecordBatch](./images/tables-versus-record-batches.svg)
 
 
-RecordBatch 可以在不同的实现之间发送, 已入通过IPC或者通过C数据接口.
+RecordBatch 可以在不同的实现之间发送, 例如通过IPC或者通过C数据接口.
 
 Table和Chunked Array是C++实现中的概念而不是Arrow格式本身, 因此他们不能直接移植.
 
