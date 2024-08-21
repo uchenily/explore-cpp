@@ -18,6 +18,7 @@ dependencies += oatpp_dep
 all_tests_sources = [
   '00_start.cpp',
   '01_request_handler.cpp',
+  '02_json_response.cpp',
 ]
 
 foreach source: all_tests_sources
