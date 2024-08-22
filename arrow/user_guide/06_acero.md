@@ -104,7 +104,7 @@ Declaration对象和 DeclarationToXyz 方法是 Acero 当前的公共 API.
 
 ![Declaration vs. ExecPlan](./images/decl_vs_ep.svg)
 
-Declaration 是用于实例化 ExecPlan 实例的蓝图.
+Declaration 是用于实例化 ExecPlan 实例的蓝图.
 
 
 ### Acero 用户指南
@@ -248,7 +248,7 @@ source 节点需要一个函数, 可以调用该函数来轮询获取更多的�
 auto f() -> arrow::Future<std::optional<arrow::ExecBatch>>
 ```
 
-arrow 将这些函数成为`arrow::AsyncGenerator`
+arrow 将这些函数称为`arrow::AsyncGenerator`
 
 在开始任何处理之前, Acero必须知道执行图的每一个阶段的数据架构. 这意味着需要为源节点提供与数据本身分开的架构.
 
@@ -305,8 +305,8 @@ arrow::Result<BatchesWithSchema> MakeBasicBatches() {
 使用 source 的示例:
 
 ```cpp
-// Source-Table 示例
-//
+// 一个说明 source 和 sink 的示例
+// Source-Table
 // 示例展示了如何在执行计划中使用自定义源。这包括使用预生成数据的源节点并将其收集到一个表中。
 //
 // 这种自定义源通常是不需要的。在大多数情况下，您可以使用扫描(对于数据集源)或像table_source、array_vector_source、exec_batch_source或record_batch_source(对于内存中的数据)这样的源。
@@ -363,13 +363,13 @@ auto ScanFilterSinkExample() -> arrow::Status {
 
     auto options = std::make_shared<arrow::dataset::ScanOptions>();
     // 指定 filter
-    cp::Expression filter_expression
+    cp::Expression filter_expr
         = cp::greater(cp::field_ref("a"), cp::literal(3));
     // 为scanner 设置 filter: on-disk/push-down 过滤
     // 如果不是从磁盘读取, 这个步骤可以省略
     options->filter = filter_expr;
     // 空 projection
-    options->project = cp::project({}, {});
+    options->projection = cp::project({}, {});
 
     // 构造 scan 节点
     std::cout << "Initialized Scanning Options\n";
@@ -415,5 +415,555 @@ auto ScanProjectSinkExample() -> arrow::Status {
                             ac::ProjectNodeOptions({a_times_2})};
 
     return ExecutePlanAndCollectAsTable(std::move(project));
+}
+```
+
+**aggregate**
+
+Arrow 支持两种类型的聚合: "标量"聚合和"哈希"聚合.
+标量聚合将数组或标量输入减少为单个标量输出（例如，计算列的平均值）。哈希聚合的作用类似于 SQL 中的 GROUP BY，首先根据一个或多个键列对数据进行分区，然后减少每个分区中的数据。聚合节点支持这两种类型的计算，并且可以一次计算任意数量的聚合。
+
+聚合可以以组或标量的形式提供结果。例如，像 hash_count 这样的操作将每条唯一记录的计数作为分组结果提供，而像 sum 这样的操作则提供一条记录。
+
+标量聚合示例：
+
+```cpp
+// 使用聚合的示例
+//
+// Source-Aggragation-Table
+// 这里示例展示如何将聚合操作应用于标量输出的执行计划。源节点加载数据，并对该数据应用聚合(对列'a'中的唯一类型进行计数)。输出被收集到一个表中(该表只有一行)。
+auto SourceScalarAggregateSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeBasicBatches());
+    auto source_node_options
+        = ac::SourceNodeOptions{basic_data.schema, basic_data.gen()};
+    ac::Declaration source{"source", std::move(source_node_options)};
+    auto            aggregate_options
+        = ac::AggregateNodeOptions{{{"sum", nullptr, "a", "sum(a)"}}};
+    ac::Declaration aggregate{"aggregate",
+                              {std::move(source)},
+                              std::move(aggregate_options)};
+    return ExecutePlanAndCollectAsTable(std::move(aggregate));
+}
+
+// 输出示例:
+sum(a): int64
+----
+sum(a):
+  [
+    [
+      49
+    ]
+  ]
+```
+
+
+组聚合(hash 聚合)示例:
+
+```cpp
+// 使用聚合执行 group-by 操作的示例
+//
+// Source-Aggragation-Table
+// 这里示例展示如何将聚合操作应用于分组输出的执行计划。源节点加载数据，并对该数据应用聚合(对列'a'中的唯一类型进行计数)。输出被收集到一个表中，该表将为组键的每个唯一组合包含一行。
+auto SourceGroupAggregateSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeBasicBatches());
+    arrow::AsyncGenerator<std::optional<cp::ExecBatch>> sink_gen;
+
+    auto source_node_options
+        = ac::SourceNodeOptions{basic_data.schema, basic_data.gen()};
+    ac::Declaration source{"source", std::move(source_node_options)};
+
+    auto options
+        = std::make_shared<cp::CountOptions>(cp::CountOptions::ONLY_VALID);
+    auto aggregate_options
+        = ac::AggregateNodeOptions{{{"hash_count", options, "a", "count(a)"}},
+                                   {"b"}};
+
+    ac::Declaration aggregate{"aggregate",
+                              {std::move(source)},
+                              std::move(aggregate_options)};
+    return ExecutePlanAndCollectAsTable(std::move(aggregate));
+}
+
+// 输出示例:
+b: bool
+count(a): int64
+----
+b:
+  [
+    [
+      false,
+      true
+    ]
+  ]
+count(a):
+  [
+    [
+      4,
+      4
+    ]
+  ]
+```
+
+
+**sink**
+
+sink 操作提供输出, 而且是流失处理执行定义的最后一个节点. 与source 类似, sink算子也使用一个函数公开输出. 这个函数每次调用时都会返回一个记录批次 future. 反复调用这个函数, 直到生成器函数耗尽(返回 std::optional::nullopt)
+
+如果这个函数调用的平率不高, 则记录批次会在内存中累积. 一个执行计划应该只有一个终止节点(一个 sink 节点)
+
+Source Example示例也包括 Sink 操作:
+```cpp
+// 一个说明 source 和 sink 的示例
+// Source-Table
+// 示例展示了如何在执行计划中使用自定义源。这包括使用预生成数据的源节点并将其收集到一个表中。
+//
+// 这种自定义源通常是不需要的。在大多数情况下，您可以使用扫描(对于数据集源)或像table_source、array_vector_source、exec_batch_source或record_batch_source(对于内存中的数据)这样的源。
+auto SourceSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeBasicBatches());
+    auto source_node_options
+        = ac::SourceNodeOptions{basic_data.schema, basic_data.gen()};
+
+    ac::Declaration source{"source", std::move(source_node_options)};
+
+    return ExecutePlanAndCollectAsTable(std::move(source));
+}
+```
+
+
+**consuming_sink**
+
+consuming_sink 算子是一个 sink 操作, 包含执行计划中的消费部分.(也就是在消费完成之前, exec plan不会完成)
+
+与 sink节点不同, consuming_sink采用一个回调函数, 这个函数会使用批处理. 一旦回调完成, 执行计划将不在包括对批处理的任何引用.
+
+可以在上一次调用完成之前调用使用函数. 如果消费函数的运行速度不够快, 那么许多的并发执行可能会堆积, 从而阻塞 CPU 线程池.
+
+在完成所有消费函数回调之前, 执行计划不会被标记为已完成. 一旦所有的批次都已经提交, 执行计划将等待`finish` future完成, 然后将执行计划标记为完成. 这允许使用函数将批处理转换为异步任务的工作流.
+
+例子:
+
+```cpp
+// 定义一个自定义的 SinkNodeConsumer
+std::atomic<uint32_t> batches_seen{0};
+arrow::Future<>       finish = arrow::Future<>::Make();
+struct CustomSinkNodeConsumer : public arrow::acero::SinkNodeConsumer {
+
+    CustomSinkNodeConsumer(std::atomic<uint32_t> *batches_seen,
+                           arrow::Future<>        finish)
+        : batches_seen(batches_seen)
+        , finish(std::move(finish)) {}
+    // Consumption logic can be written here
+    arrow::Status Consume(cp::ExecBatch batch) override {
+        // data can be consumed in the expected way
+        // transfer to another system or just do some work
+        // and write to disk
+        (*batches_seen)++;
+        return arrow::Status::OK();
+    }
+
+    auto Finish() -> arrow::Future<> override {
+        return finish;
+    }
+
+    std::atomic<uint32_t> *batches_seen;
+    arrow::Future<>        finish;
+};
+```
+
+```cpp
+// consuming sink 示例
+//
+// Source-Consuming-Sink
+// 这个示例展示了如何通过使用ConsumingSink节点在执行计划中使用数据。这个执行计划没有数据输出
+auto SourceConsumingSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeBasicBatches());
+
+    auto source_node_options
+        = ac::SourceNodeOptions{basic_data.schema, basic_data.gen()};
+
+    ac::Declaration source{"source", std::move(source_node_options)};
+
+    std::atomic<uint32_t> batches_seen{0};
+    arrow::Future<>       finish = arrow::Future<>::Make();
+    struct CustomSinkNodeConsumer : public ac::SinkNodeConsumer {
+        CustomSinkNodeConsumer(std::atomic<uint32_t> *batches_seen,
+                               arrow::Future<>        finish)
+            : batches_seen(batches_seen)
+            , finish(std::move(finish)) {}
+
+        arrow::Status Init(const std::shared_ptr<arrow::Schema> &schema,
+                           ac::BackpressureControl * /*backpressure_control*/,
+                           ac::ExecPlan * /*plan*/) override {
+            // This will be called as the plan is started (before the first call
+            // to Consume) and provides the schema of the data coming into the
+            // node, controls for pausing / resuming input, and a pointer to the
+            // plan itself which can be used to access other utilities such as
+            // the thread indexer or async task scheduler.
+            return arrow::Status::OK();
+        }
+
+        arrow::Status Consume(cp::ExecBatch batch) override {
+            (*batches_seen)++;
+            return arrow::Status::OK();
+        }
+
+        auto Finish() -> arrow::Future<> override {
+            // Here you can perform whatever (possibly async) cleanup is needed,
+            // e.g. closing output file handles and flushing remaining work
+            return arrow::Future<>::MakeFinished();
+        }
+
+        std::atomic<uint32_t> *batches_seen;
+        arrow::Future<>        finish;
+    };
+    std::shared_ptr<CustomSinkNodeConsumer> consumer
+        = std::make_shared<CustomSinkNodeConsumer>(&batches_seen, finish);
+
+    ac::Declaration consuming_sink{
+        "consuming_sink",
+        {std::move(source)},
+        ac::ConsumingSinkNodeOptions(std::move(consumer))};
+
+    // Since we are consuming the data within the plan there is no output and we
+    // simply run the plan to completion instead of collecting into a table.
+    ARROW_RETURN_NOT_OK(ac::DeclarationToStatus(std::move(consuming_sink)));
+
+    std::cout << "The consuming sink node saw " << batches_seen.load()
+              << " batches\n";
+    return arrow::Status::OK();
+}
+```
+
+**order_by_sink**
+
+是 sink 操作的扩展
+
+Order-By-Sink 示例:
+
+```cpp
+auto ExecutePlanAndCollectAsTableWithCustomSink(
+    const std::shared_ptr<ac::ExecPlan>                &plan,
+    std::shared_ptr<arrow::Schema>                      schema,
+    arrow::AsyncGenerator<std::optional<cp::ExecBatch>> sink_gen)
+    -> arrow::Status {
+    // translate sink_gen (async) to sink_reader (sync)
+    std::shared_ptr<arrow::RecordBatchReader> sink_reader
+        = ac::MakeGeneratorReader(std::move(schema),
+                                  std::move(sink_gen),
+                                  arrow::default_memory_pool());
+
+    // validate the ExecPlan
+    ARROW_RETURN_NOT_OK(plan->Validate());
+    std::cout << "ExecPlan created : " << plan->ToString() << '\n';
+    // start the ExecPlan
+    plan->StartProducing();
+
+    // collect sink_reader into a Table
+    std::shared_ptr<arrow::Table> response_table;
+
+    ARROW_ASSIGN_OR_RAISE(
+        response_table,
+        arrow::Table::FromRecordBatchReader(sink_reader.get()));
+
+    std::cout << "Results : " << response_table->ToString() << '\n';
+
+    // stop producing
+    plan->StopProducing();
+    // plan mark finished
+    auto future = plan->finished();
+    return future.status();
+}
+
+/// order-by 示例
+///
+/// Source-OrderBy-Sink
+/// 数据通过源节点进入，数据在sink节点中排序。顺序可以是ASCENDING或DESCENDING，并且是可配置的。输出以表的形式从sink节点获得。
+auto SourceOrderBySinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<ac::ExecPlan> plan,
+                          ac::ExecPlan::Make(*cp::threaded_exec_context()));
+
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeSortTestBasicBatches());
+
+    arrow::AsyncGenerator<std::optional<cp::ExecBatch>> sink_gen;
+
+    auto source_node_options
+        = ac::SourceNodeOptions{basic_data.schema, basic_data.gen()};
+    ARROW_ASSIGN_OR_RAISE(
+        ac::ExecNode * source,
+        ac::MakeExecNode("source", plan.get(), {}, source_node_options));
+
+    ARROW_RETURN_NOT_OK(ac::MakeExecNode(
+        "order_by_sink",
+        plan.get(),
+        {source},
+        ac::OrderBySinkNodeOptions{
+            cp::SortOptions{{cp::SortKey{"a", cp::SortOrder::Descending}}},
+            &sink_gen}));
+
+    return ExecutePlanAndCollectAsTableWithCustomSink(plan,
+                                                      basic_data.schema,
+                                                      sink_gen);
+}
+```
+
+
+**select_k_sink**
+
+选择 top/bottom K个元素. 类似于SQL `ORDER BY ... LIMIT K` 子句.
+
+Select K 示例:
+```cpp
+// select-k 示例
+//
+// Source-KSelect
+// 这个例子展示了如何从顶部或底部选择K个元素。输出节点是一个修改后的sink节点，其中的输出可以以表的形式获得。
+auto SourceKSelectExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto input, MakeGroupableBatches());
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<ac::ExecPlan> plan,
+                          ac::ExecPlan::Make(*cp::threaded_exec_context()));
+    arrow::AsyncGenerator<std::optional<cp::ExecBatch>> sink_gen;
+
+    ARROW_ASSIGN_OR_RAISE(
+        ac::ExecNode * source,
+        ac::MakeExecNode("source",
+                         plan.get(),
+                         {},
+                         ac::SourceNodeOptions{input.schema, input.gen()}));
+
+    cp::SelectKOptions options
+        = cp::SelectKOptions::TopKDefault(/*k=*/2, {"i32"});
+
+    ARROW_RETURN_NOT_OK(
+        ac::MakeExecNode("select_k_sink",
+                         plan.get(),
+                         {source},
+                         ac::SelectKSinkNodeOptions{options, &sink_gen}));
+
+    auto schema = arrow::schema({arrow::field("i32", arrow::int32()),
+                                 arrow::field("str", arrow::utf8())});
+
+    return ExecutePlanAndCollectAsTableWithCustomSink(plan, schema, sink_gen);
+}
+```
+
+
+**table_sink**
+
+提供将输出作为内存中的表接收的功能. 只有输出适合放到内存才有意义.
+
+示例:
+
+```cpp
+// table sink 示例
+//
+// 在执行计划中使用 table_sink 的示例, 包括一个 source 节点接收数据作为 batches
+// 和 Table sink 节点提交输出到一个 table
+auto TableSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<ac::ExecPlan> plan,
+                          ac::ExecPlan::Make(*cp::threaded_exec_context()));
+
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeBasicBatches());
+
+    auto source_node_options
+        = ac::SourceNodeOptions{basic_data.schema, basic_data.gen()};
+
+    ARROW_ASSIGN_OR_RAISE(
+        ac::ExecNode * source,
+        ac::MakeExecNode("source", plan.get(), {}, source_node_options));
+
+    std::shared_ptr<arrow::Table> output_table;
+    auto table_sink_options = ac::TableSinkNodeOptions{&output_table};
+
+    ARROW_RETURN_NOT_OK(ac::MakeExecNode("table_sink",
+                                         plan.get(),
+                                         {source},
+                                         table_sink_options));
+    // validate the ExecPlan
+    ARROW_RETURN_NOT_OK(plan->Validate());
+    std::cout << "ExecPlan created : " << plan->ToString() << '\n';
+    // start the ExecPlan
+    plan->StartProducing();
+
+    // Wait for the plan to finish
+    auto finished = plan->finished();
+    RETURN_NOT_OK(finished.status());
+    std::cout << "Results : " << output_table->ToString() << '\n';
+    return arrow::Status::OK();
+}
+```
+
+
+**scan**
+
+用于加载和处理数据集. 当输入是数据集时, 应该更优先使用`scan` 而不是更通用的`source`
+
+scan 节点能够应用下推过滤器到文件读取器, 从而减少需要读取的数据量. 这意味这可以向扫描节点提供相同的筛选表达式, 因为筛选是在两个不同的位置完成的.
+
+scan 示例:
+
+```cpp
+// scan 和 sink 的示例
+//
+// Scan-Table
+// 展示如何在数据集上应用扫描操作, 有一些操作可以应用扫描(project, filter). 输出 table
+auto ScanSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::dataset::Dataset> dataset,
+                          GetDataset());
+    auto options = std::make_shared<arrow::dataset::ScanOptions>();
+    options->projection = cp::project({}, {});
+
+    // 构造 scan 节点
+    auto scan_node_options = arrow::dataset::ScanNodeOptions{dataset, options};
+    ac::Declaration scan{"scan", std::move(scan_node_options)};
+
+    return ExecutePlanAndCollectAsTable(std::move(scan));
+}
+```
+
+**write**
+
+write节点使用 Arrow 中的`Tabular Datasets` 功能, 将查询结果保存为 Parquet, Feather, CSV等格式的文件数据集.
+
+write 示例:
+
+```cpp
+/// \brief An example showing a write node
+/// \param file_path The destination to write to
+///
+/// Scan-Filter-Write
+/// This example shows how scan node can be used to load the data
+/// and after processing how it can be written to disk.
+auto ScanFilterWriteExample(const std::string &file_path) -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::dataset::Dataset> dataset,
+                          GetDataset());
+
+    auto options = std::make_shared<arrow::dataset::ScanOptions>();
+    // empty projection
+    options->projection = cp::project({}, {});
+
+    auto scan_node_options = arrow::dataset::ScanNodeOptions{dataset, options};
+
+    ac::Declaration scan{"scan", std::move(scan_node_options)};
+
+    arrow::AsyncGenerator<std::optional<cp::ExecBatch>> sink_gen;
+
+    std::string root_path;
+    std::string uri = "file://" + file_path;
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::fs::FileSystem> filesystem,
+                          arrow::fs::FileSystemFromUri(uri, &root_path));
+
+    auto base_path = root_path + "/parquet_dataset";
+    // Uncomment the following line, if run repeatedly
+    // ARROW_RETURN_NOT_OK(filesystem->DeleteDirContents(base_path));
+    ARROW_RETURN_NOT_OK(filesystem->CreateDir(base_path));
+
+    // The partition schema determines which fields are part of the
+    // partitioning.
+    auto partition_schema = arrow::schema({arrow::field("a", arrow::int32())});
+    // We'll use Hive-style partitioning,
+    // which creates directories with "key=value" pairs.
+
+    auto partitioning
+        = std::make_shared<arrow::dataset::HivePartitioning>(partition_schema);
+    // We'll write Parquet files.
+    auto format = std::make_shared<arrow::dataset::ParquetFileFormat>();
+
+    arrow::dataset::FileSystemDatasetWriteOptions write_options;
+    write_options.file_write_options = format->DefaultWriteOptions();
+    write_options.filesystem = filesystem;
+    write_options.base_dir = base_path;
+    write_options.partitioning = partitioning;
+    write_options.basename_template = "part{i}.parquet";
+
+    arrow::dataset::WriteNodeOptions write_node_options{write_options};
+
+    ac::Declaration write{"write",
+                          {std::move(scan)},
+                          std::move(write_node_options)};
+
+    // Since the write node has no output we simply run the plan to completion
+    // and the data should be written
+    ARROW_RETURN_NOT_OK(ac::DeclarationToStatus(std::move(write)));
+
+    std::cout << "Dataset written to " << base_path << '\n';
+    return arrow::Status::OK();
+}
+```
+
+
+**union**
+
+将具有相同 schema 的多个数据流合并为一个. 类似于SQL `UNION ALL` 子句.
+
+union 示例:
+
+```cpp
+// union 示例
+//
+// Source-Union-Table
+// 展示两个数据源的 union 操作, 输出到一个 table 中
+auto SourceUnionSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto basic_data, MakeBasicBatches());
+    ac::Declaration left{
+        "source",
+        ac::SourceNodeOptions{basic_data.schema, basic_data.gen()}
+    };
+    left.label = "left";
+    ac::Declaration right{
+        "source",
+        ac::SourceNodeOptions{basic_data.schema, basic_data.gen()}
+    };
+    right.label = "right";
+
+    ac::Declaration union_plan{
+        "union",
+        {std::move(left), std::move(right)},
+        ac::ExecNodeOptions{}
+    };
+
+    return ExecutePlanAndCollectAsTable(std::move(union_plan));
+}
+```
+
+
+**hash_join**
+
+使用基于 hash的算法进行连接.
+
+示例:
+
+```cpp
+
+// hash join 示例
+//
+// Source-HashJoin-Table
+// 展示 souce 节点获取数据, 对数据执行 self-join, 输出到 table
+auto SourceHashJoinSinkExample() -> arrow::Status {
+    ARROW_ASSIGN_OR_RAISE(auto input, MakeGroupableBatches());
+
+    ac::Declaration left{
+        "source",
+        ac::SourceNodeOptions{input.schema, input.gen()}
+    };
+    ac::Declaration right{
+        "source",
+        ac::SourceNodeOptions{input.schema, input.gen()}
+    };
+
+    ac::HashJoinNodeOptions join_opts{
+        ac::JoinType::INNER,
+        /*left_keys=*/{"str"},
+        /*right_keys=*/{"str"},
+        cp::literal(true),
+        "l_",
+        "r_"};
+
+    ac::Declaration hashjoin{
+        "hashjoin",
+        {std::move(left), std::move(right)},
+        std::move(join_opts)
+    };
+
+    return ExecutePlanAndCollectAsTable(std::move(hashjoin));
 }
 ```
