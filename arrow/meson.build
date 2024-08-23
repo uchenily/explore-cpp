@@ -40,3 +40,5 @@ foreach source: all_tests_sources
 
   test(target_name, exe)
 endforeach
+
+subdir('examples')
