@@ -1,6 +1,7 @@
 all_tests_sources = [
   'example.cpp',
   'compute_and_write_csv_example.cpp',
+  'dataset_example.cpp',
 ]
 
 foreach source: all_tests_sources
