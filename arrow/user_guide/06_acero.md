@@ -142,7 +142,7 @@ auto ScanProjectSinkExample() -> arrow::Status {
     // projection
     cp::Expression a_times_2
         = cp::call("multiply", {cp::field_ref("a"), cp::literal(2)});
-    options->projection = cp::prinject({}, {});
+    options->projection = cp::projection({}, {});
 
     auto scan_node_options = arrow::dataset::ScanNodeOptions{dataset, options};
 
