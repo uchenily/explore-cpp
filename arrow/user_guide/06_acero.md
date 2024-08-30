@@ -1,7 +1,7 @@
 # Acero
 
 一些复杂的计算, 直接调用计算函数在内存或者计算时间上都不可行.
-Acero 可以用来制定和执行计算, 便于实现任意打的输入和更高效的资源使用.
+Acero 是流查询引擎, 可以用来制定和执行计算, 便于实现任意大的输入和更高效的资源使用.
 
 ![High Level](./images/high_level.svg)
 
@@ -967,3 +967,59 @@ auto SourceHashJoinSinkExample() -> arrow::Status {
     return ExecutePlanAndCollectAsTable(std::move(hashjoin));
 }
 ```
+
+
+## Acero Developer's Guide
+
+ExecNode是一个抽象基类, 包含多个纯虚方法控制节点的操作:
+
+**`ExecNode::StartProducing()`**
+
+plan开始的时候执行. 一般source节点需要提供自定义的实现.
+
+ExecNode运行在push-based模型, 但是Source经常是pull-based, 比如源可能是一个迭代器.
+
+source node调度任务从源拉取, 然后push到输出节点. (通过InputReceived)
+
+例子:
+
+- `table_source` 节点中table被分成batches, 每一个batch都有一个对应的task创建, 这个task在节点的输出上调用`InputReceived`.
+- `scan` 节点中dataset中的一个fragment会创建一个task, 然后每一个task又创建多个task以异步的方式从fragment中读取batches. 当batch读完, 会调度一个新的任务, 在scan节点的输出上调用`InputReceived`
+
+**`ExecNode::InputReceived()`**
+
+这个方法会在plan执行期间被调用多次. 这就是节点间传递数据的方法.
+一个输入节点将会在它的输出上调用`InputReceived`. Acero的执行模型是push-based的.
+每一个节点通过调用`InputReceived`并输入一批数据将数据push到其输出.
+
+`InputReceived`方法通常就是节点实际工作发生的地方. 例如, project节点执行它的表达式, 然后创建一个新的扩展输出到batch. 然后它将对输出调用`InputReceived`.
+
+`InputReceived` 永远不会在source节点上被调用. sink节点永远不会调用`InputReceived`. 除了这两类节点外, 其他的节点都会调用`InputReceived`.
+
+有些节点(通常被称为pipeline breaker)必须先累积输入, 然后才能产生输出. 比如, 排序节点必须先累积所有的输入, 然后才能对数据进行排序并生成输出.
+在这些节点中, `InputReceived` 方法通常会将数据放到某种累积队列中. 如果节点没有足够的数据来操作, 那么它将不会调用`InputReceived`
+
+
+例子:
+
+- `project` 节点运行表达式, 使用接收到的batch作为表达式的输入. 从输入batch经过表达式会产生一个新的batch. 新的batch的索引顺序和输入batch相同, 然后节点在其输出上调用`InputReceived` 方法.
+- `order_by` 节点将batch插入到累积队列中. 如果已经是最后一个batch, 节点将会在累积队列中执行sort. 节点对排序结果中的每一个batch的输出调用`InputReceived`, 将会给每一个batch一个新的索引. 注意最后步骤的输出结果也可能是调用`InputFinished` 的结果.
+
+
+**`ExecNode::InputFinished()`**
+
+每一个输入将会调用这个方法一次. 一旦这个节点知道应该向该输出发送多个批数据, 它将在输出上调用`InputFinished`.
+通常发生在节点完成工作时. 例如, scan节点在完成读取文件后, 将会调用`InputFinished`. 但是如果它知道(可能来自文件元数据)将创建多少批, 则可以更早调用它.
+
+一些节点将使用这个信号触发一些处理. 例如, sort节点需要等待接收到所有输入后才能对数据进行排序, 它依赖于`InputFinished` 调用来知道这已经发生.
+
+即使一个节点在完成时没有做任何特殊的处理(例如, 一个project节点或者filter节点不需要做任何end-of-stream的处理, 该节点忍让会在其输出调用`InputFinished`.
+
+> Warning: `InputFinished` 调用可能在对`InputFinished` 的最后调用之前到达. 实际上, 它甚至可以在对`InputReceived` 的任何调用开始之前发送出去. 例如table source节点总是确切知道它将生成多少批. 它可以选择在调用`InputReceived`之前调用`InputFinished`.
+> 如果一个节点需要进行 end-of-stream 处理, 通常会使用一个辅助类 AtomicCounter 来计算所有数据何时到达.
+
+
+例子:
+
+- `order_by` 节点检查是否已经接收了所有的batches. 如果已经收到了, 则执行排序. 在开始发送输出数据之前, 它会检查有多少个输出批次(批次大小可能在累积或者排序的过程中发生了变化), 并在节点的输出上调用 `InputFinished`.
+- `fetch` 节点在调用`InputReceived`期间意识到它已经接收到请求的所有行. 它立即对其输出调用`InputFinished` (即使他自己的`InputFinished` 方法还没有调用).
