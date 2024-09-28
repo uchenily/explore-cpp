@@ -7,7 +7,7 @@ help:
 
 # setup build env
 setup:
-    meson setup --reconfigure build
+    meson setup --reconfigure build --native-file meson-native.txt
 
 # build all
 build-all:
