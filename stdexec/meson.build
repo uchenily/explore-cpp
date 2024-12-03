@@ -11,12 +11,13 @@ compile_args = []
 
 includes = include_directories('.')
 
-stdexec_dep = dependency('stdexec')
+stdexec_dep = dependency('stdexec') # version: 2024-06-16#2
 dependencies = []
 dependencies += stdexec_dep
 
 all_tests_sources = [
   '00_hello.cpp',
+  '01_let_value.cpp',
   'main.cpp',
 ]
 
