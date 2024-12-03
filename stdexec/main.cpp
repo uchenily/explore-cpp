@@ -24,7 +24,7 @@ auto main() -> int {
     /*stdexec::scheduler*/ auto io_thread = loop.get_scheduler();
 
     /*stdexec::sender*/ auto work
-        = stdexec::starts_on(io_thread, std::move(print));
+        = stdexec::start_on(io_thread, std::move(print));
 
     auto [result] = stdexec::sync_wait(std::move(work)).value();
 
