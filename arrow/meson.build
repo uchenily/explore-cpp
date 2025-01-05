@@ -42,3 +42,4 @@ foreach source: all_tests_sources
 endforeach
 
 subdir('examples')
+subdir('async_task')
