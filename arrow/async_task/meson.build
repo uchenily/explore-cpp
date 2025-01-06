@@ -1,6 +1,7 @@
 all_tests_sources = [
   '00_future.cpp',
   '01_threadpool.cpp',
+  '02_scheduler.cpp',
 ]
 
 foreach source: all_tests_sources
