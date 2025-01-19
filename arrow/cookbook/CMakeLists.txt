@@ -77,7 +77,7 @@ endfunction()
 
 # recipe(basic_arrow)
 # recipe(creating_arrow_objects)
-# recipe(datasets)
+recipe(datasets)
 recipe(flight)
 
 
