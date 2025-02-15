@@ -8,15 +8,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 set(CMAKE_PREFIX_PATH "$ENV{VCPKG_ROOT}/installed/x64-linux" CACHE STRING "")
 
-# flags 需要
+# gflags 需要
 set(GFLAGS_USE_TARGET_NAMESPACE ON)
 
 # 查找依赖库
 find_package(unofficial-brpc CONFIG REQUIRED)
-find_package(leveldb CONFIG REQUIRED)
-find_package(protobuf CONFIG REQUIRED)
-find_package(gflags CONFIG REQUIRED)
 
+# protoc编译proto文件
 protobuf_generate_cpp(PROTO_SRC PROTO_HEADER echo.proto)
 # include PROTO_HEADER
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -26,5 +24,5 @@ add_executable(echo_client client.cpp ${PROTO_SRC} ${PROTO_HEADER})
 add_executable(echo_server server.cpp ${PROTO_SRC} ${PROTO_HEADER})
 
 # 链接库
-target_link_libraries(echo_server unofficial::brpc::brpc-static protobuf::libprotobuf leveldb::leveldb gflags::gflags)
-target_link_libraries(echo_client unofficial::brpc::brpc-static protobuf::libprotobuf leveldb::leveldb gflags::gflags)
+target_link_libraries(echo_server unofficial::brpc::brpc-static)
+target_link_libraries(echo_client unofficial::brpc::brpc-static)

@@ -4,7 +4,7 @@
 #include <butil/time.h>
 #include <gflags/gflags.h>
 
-DEFINE_string(attachment, "", "Carry this along with requests");
+DEFINE_string(attachment, "XXX", "Carry this along with requests");
 DEFINE_string(protocol,
               "baidu_std",
               "Protocol type. Defined in src/brpc/options.proto");
@@ -50,26 +50,27 @@ auto main(int argc, char *argv[]) -> int {
         // on stack.
         example::EchoRequest  request;
         example::EchoResponse response;
-        brpc::Controller      cntl;
+        brpc::Controller      controller;
 
         request.set_message("hello world");
 
-        cntl.set_log_id(log_id++); // set by user
+        controller.set_log_id(log_id++); // set by user
         // Set attachment which is wired to network directly instead of
         // being serialized into protobuf messages.
-        cntl.request_attachment().append(FLAGS_attachment);
+        controller.request_attachment().append(FLAGS_attachment);
 
         // Because `done'(last parameter) is NULL, this function waits until
         // the response comes back or error occurs(including timedout).
-        stub.Echo(&cntl, &request, &response, nullptr);
-        if (!cntl.Failed()) {
-            LOG(INFO) << "Received response from " << cntl.remote_side()
-                      << " to " << cntl.local_side() << ": "
+        stub.Echo(&controller, &request, &response, nullptr);
+        if (!controller.Failed()) {
+            LOG(INFO) << "Received response from " << controller.remote_side()
+                      << " to " << controller.local_side() << ": "
                       << response.message()
-                      << " (attached=" << cntl.response_attachment() << ")"
-                      << " latency=" << cntl.latency_us() << "us";
+                      << " (attached=" << controller.response_attachment()
+                      << ")"
+                      << " latency=" << controller.latency_us() << "us";
         } else {
-            LOG(WARNING) << cntl.ErrorText();
+            LOG(WARNING) << controller.ErrorText();
         }
         usleep(FLAGS_interval_ms * 1000L);
     }

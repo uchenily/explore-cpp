@@ -24,7 +24,7 @@ public:
     EchoServiceImpl() = default;
     ~EchoServiceImpl() override = default;
 
-    void Echo(google::protobuf::RpcController *cntl_base,
+    void Echo(google::protobuf::RpcController *rpc_controller,
               const EchoRequest               *request,
               EchoResponse                    *response,
               google::protobuf::Closure       *done) override {
@@ -32,24 +32,25 @@ public:
         // to process the request asynchronously, pass done_guard.release().
         brpc::ClosureGuard done_guard(done);
 
-        auto cntl = dynamic_cast<brpc::Controller *>(cntl_base);
+        auto controller = dynamic_cast<brpc::Controller *>(rpc_controller);
 
         // optional: set a callback function which is called after response is
         // sent and before cntl/req/res is destructed.
-        cntl->set_after_rpc_resp_fn([](auto &&PH1, auto &&PH2, auto &&PH3) {
-            return EchoServiceImpl::CallAfterRpc(
-                std::forward<decltype(PH1)>(PH1),
-                std::forward<decltype(PH2)>(PH2),
-                std::forward<decltype(PH3)>(PH3));
-        });
+        controller->set_after_rpc_resp_fn(
+            [](auto &&PH1, auto &&PH2, auto &&PH3) {
+                return EchoServiceImpl::CallAfterRpc(
+                    std::forward<decltype(PH1)>(PH1),
+                    std::forward<decltype(PH2)>(PH2),
+                    std::forward<decltype(PH3)>(PH3));
+            });
 
         // The purpose of following logs is to help you to understand
         // how clients interact with servers more intuitively. You should
         // remove these logs in performance-sensitive servers.
-        LOG(INFO) << "Received request[log_id=" << cntl->log_id() << "] from "
-                  << cntl->remote_side() << " to " << cntl->local_side() << ": "
-                  << request->message()
-                  << " (attached=" << cntl->request_attachment() << ")";
+        LOG(INFO) << "Received request[log_id=" << controller->log_id()
+                  << "] from " << controller->remote_side() << " to "
+                  << controller->local_side() << ": " << request->message()
+                  << " (attached=" << controller->request_attachment() << ")";
 
         // Fill response.
         response->set_message(request->message());
@@ -61,7 +62,9 @@ public:
         if (FLAGS_echo_attachment) {
             // Set attachment which is wired to network directly instead of
             // being serialized into protobuf messages.
-            cntl->response_attachment().append(cntl->request_attachment());
+            controller->response_attachment().append(
+                // controller->request_attachment()
+                "YYY");
         }
     }
 
@@ -71,11 +74,11 @@ public:
                              const google::protobuf::Message *res) {
         // at this time res is already sent to client, but cntl/req/res is not
         // destructed
-        std::string req_str;
-        std::string res_str;
-        json2pb::ProtoMessageToJson(*req, &req_str, nullptr);
-        json2pb::ProtoMessageToJson(*res, &res_str, nullptr);
-        LOG(INFO) << "req:" << req_str << " res:" << res_str;
+        std::string request;
+        std::string response;
+        json2pb::ProtoMessageToJson(*req, &request, nullptr);
+        json2pb::ProtoMessageToJson(*res, &response, nullptr);
+        LOG(INFO) << "req:" << request << " resq:" << response;
     }
 };
 } // namespace example
@@ -99,19 +102,20 @@ auto main(int argc, char *argv[]) -> int {
         return -1;
     }
 
-    butil::EndPoint point;
+    butil::EndPoint endpoint;
     if (!FLAGS_listen_addr.empty()) {
-        if (butil::str2endpoint(FLAGS_listen_addr.c_str(), &point) < 0) {
+        if (butil::str2endpoint(FLAGS_listen_addr.c_str(), &endpoint) < 0) {
             LOG(ERROR) << "Invalid listen address:" << FLAGS_listen_addr;
             return -1;
         }
     } else {
-        point = butil::EndPoint(butil::IP_ANY, FLAGS_port);
+        endpoint = butil::EndPoint(butil::IP_ANY, FLAGS_port);
     }
+
     // Start the server.
     brpc::ServerOptions options;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
-    if (server.Start(point, &options) != 0) {
+    if (server.Start(endpoint, &options) != 0) {
         LOG(ERROR) << "Fail to start EchoServer";
         return -1;
     }
