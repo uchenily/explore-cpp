@@ -20,9 +20,11 @@ protobuf_generate_cpp(PROTO_SRC PROTO_HEADER echo.proto)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # 添加可执行文件
-add_executable(echo_client client.cpp ${PROTO_SRC} ${PROTO_HEADER})
 add_executable(echo_server server.cpp ${PROTO_SRC} ${PROTO_HEADER})
+add_executable(echo_client client.cpp ${PROTO_SRC} ${PROTO_HEADER})
+add_executable(coroutine_server server.cpp ${PROTO_SRC} ${PROTO_HEADER})
 
 # 链接库
 target_link_libraries(echo_server unofficial::brpc::brpc-static)
 target_link_libraries(echo_client unofficial::brpc::brpc-static)
+target_link_libraries(coroutine_server unofficial::brpc::brpc-static)
