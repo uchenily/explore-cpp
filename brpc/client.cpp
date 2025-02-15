@@ -4,9 +4,10 @@
 #include <butil/time.h>
 #include <gflags/gflags.h>
 
-DEFINE_string(attachment, "XXX", "Carry this along with requests");
+// DEFINE_string(attachment, "XXX", "Carry this along with requests");
 DEFINE_string(protocol,
-              "baidu_std",
+              // "baidu_std", // 可以添加attachment
+              "h2:grpc",
               "Protocol type. Defined in src/brpc/options.proto");
 DEFINE_string(connection_type,
               "",
@@ -57,7 +58,7 @@ auto main(int argc, char *argv[]) -> int {
         controller.set_log_id(log_id++); // set by user
         // Set attachment which is wired to network directly instead of
         // being serialized into protobuf messages.
-        controller.request_attachment().append(FLAGS_attachment);
+        // controller.request_attachment().append(FLAGS_attachment);
 
         // Because `done'(last parameter) is NULL, this function waits until
         // the response comes back or error occurs(including timedout).
@@ -66,8 +67,8 @@ auto main(int argc, char *argv[]) -> int {
             LOG(INFO) << "Received response from " << controller.remote_side()
                       << " to " << controller.local_side() << ": "
                       << response.message()
-                      << " (attached=" << controller.response_attachment()
-                      << ")"
+                      // << " (attached=" << controller.response_attachment()
+                      // << ")"
                       << " latency=" << controller.latency_us() << "us";
         } else {
             LOG(WARNING) << controller.ErrorText();

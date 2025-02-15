@@ -4,7 +4,7 @@
 #include <gflags/gflags.h>
 #include <json2pb/pb_to_json.h>
 
-DEFINE_bool(echo_attachment, true, "Echo attachment as well");
+// DEFINE_bool(echo_attachment, true, "Echo attachment as well");
 DEFINE_int32(port, 8000, "TCP Port of this server");
 DEFINE_string(listen_addr,
               "",
@@ -49,8 +49,8 @@ public:
         // remove these logs in performance-sensitive servers.
         LOG(INFO) << "Received request[log_id=" << controller->log_id()
                   << "] from " << controller->remote_side() << " to "
-                  << controller->local_side() << ": " << request->message()
-                  << " (attached=" << controller->request_attachment() << ")";
+                  << controller->local_side() << ": " << request->message();
+        // << " (attached=" << controller->request_attachment() << ")";
 
         // Fill response.
         response->set_message(request->message());
@@ -59,13 +59,13 @@ public:
         // that compression may be costly, evaluate before turning on.
         // cntl->set_response_compress_type(brpc::COMPRESS_TYPE_GZIP);
 
-        if (FLAGS_echo_attachment) {
-            // Set attachment which is wired to network directly instead of
-            // being serialized into protobuf messages.
-            controller->response_attachment().append(
-                // controller->request_attachment()
-                "YYY");
-        }
+        // if (FLAGS_echo_attachment) {
+        //     // Set attachment which is wired to network directly instead of
+        //     // being serialized into protobuf messages.
+        //     controller->response_attachment().append(
+        //         // controller->request_attachment()
+        //         "YYY");
+        // }
     }
 
     // optional
