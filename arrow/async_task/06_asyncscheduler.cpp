@@ -38,18 +38,22 @@ private:
 };
 
 int main() {
-    auto context = arrow::compute::ExecContext();
+    auto thread_pool = arrow::internal::ThreadPool::Make(4).ValueOrDie();
     // 创建一个调度器
     auto scheduler_future = util::AsyncTaskScheduler::Make(
-        [](util::AsyncTaskScheduler *scheduler) -> Status {
+        [&](util::AsyncTaskScheduler *scheduler) -> Status {
             // 添加自定义任务
             // scheduler->AddTask(std::make_unique<MyTask>());
-            auto func = []() -> Future<> {
-                // context.executor()->Submit(func);
-                std::cout << "Task finished\n";
+            auto func = [&]() {
+                return thread_pool
+                    ->Submit([]() {
+                        std::cout << "Task finished\n";
+                    })
+                    .ValueOrDie();
+
                 // return Future<>::Make(); // 不会结束
-                return Future<>::
-                    MakeFinished(); // 只有任务返回MakeFinished才会结束
+                // return Future<>::
+                //     MakeFinished(); // 只有任务返回MakeFinished才会结束
             };
             scheduler->AddTask(
                 std::make_unique<CallableTask<decltype(func)>>(func));

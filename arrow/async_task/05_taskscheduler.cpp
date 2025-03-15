@@ -10,16 +10,17 @@ using namespace arrow;
 using namespace arrow::acero;
 
 // 示例任务实现
-Status ExampleTaskImpl(size_t thread_id, int64_t task_id) {
+Status ExampleTaskImpl(size_t thread_index, int64_t task_id) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 模拟任务耗时
-    std::cout << "Task " << task_id << " executed by thread " << thread_id
+    std::cout << "Task " << task_id << " executed by thread " << thread_index
               << std::endl;
     return Status::OK();
 }
 
 // 示例任务组 continuation 实现
-Status ExampleContinuationImpl(size_t thread_id) {
-    std::cout << "Continuation executed by thread " << thread_id << std::endl;
+Status ExampleContinuationImpl(size_t thread_index) {
+    std::cout << "Continuation executed by thread " << thread_index
+              << std::endl;
     return Status::OK();
 }
 
@@ -45,13 +46,13 @@ int main() {
     arrow::acero::ThreadIndexer thread_indexer;
 
     auto schedule_impl
-        // = [](TaskScheduler::TaskGroupContinuationImpl cont_impl) -> Status {
-        = [&](std::function<Status(size_t)> cont_impl) -> Status {
+        // = [](TaskScheduler::TaskGroupContinuationImpl task) -> Status {
+        = [&](std::function<Status(size_t)> task) -> Status {
         // 这里可以控制任务的调度逻辑
         // return cont_impl(0); // 使用线程 0 执行 continuation
-        return thread_pool->Spawn([&, cont_impl]() {
+        return thread_pool->Spawn([&, task]() {
             auto thread_index = thread_indexer();
-            ARROW_DCHECK_OK(cont_impl(thread_index));
+            ARROW_DCHECK_OK(task(thread_index));
         });
     };
 
