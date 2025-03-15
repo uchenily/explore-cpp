@@ -4,6 +4,7 @@ all_tests_sources = [
   '02_scheduler.cpp',
   '03_allfinished_callback.cpp',
   '04_taskgroup.cpp',
+  '05_taskscheduler.cpp',
 ]
 
 foreach source: all_tests_sources
